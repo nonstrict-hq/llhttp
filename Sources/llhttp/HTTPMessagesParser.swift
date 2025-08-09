@@ -139,7 +139,7 @@ public actor HTTPMessagesParser<MessageType: HTTPMessageType> {
         public var messageHandler: (MessageType) throws -> MessageHandlerAction = { _ in .proceed }
 
         /// Initialized the parser to parse complete HTTP messages of the inferred type.
-        public convenience init() async {
+        public convenience init() {
             self.init(mode: MessageType.self)
         }
 
