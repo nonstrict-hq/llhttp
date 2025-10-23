@@ -36,7 +36,8 @@ If you just want to handle complete HTTP messages:
 ```swift
 import llhttp
 
-let parser = HTTPMessagesParser(mode: HTTPMessage.Both.self)
+// Use `HTTPMessagesParser<HTTPRequest>` or `HTTPMessagesParser<HTTPResponse>` if you know what kind of messages you need to parse.
+let parser = HTTPMessagesParser<HTTPMessage>()
 
 // Keep reading data from the network connection and parse it
 Task {
@@ -45,6 +46,12 @@ Task {
             let content = try await connection.receive(atMost: 512).content
             for message in try await parser.parse(content) {
                 // Handle incoming HTTP message as you like
+                switch message {
+                case .request(let request):
+                    print("Got request: \(request.method) \(request.url)")
+                case .response(let response):
+                    print("Got response: \(response.status)")
+                }
             }
         }
     } catch {
@@ -52,6 +59,8 @@ Task {
     }
 }
 ```
+
+**Tip:** Use `HTTPMessagesParser<HTTPMessage>.Preconcurrency` if you don't want to use async/await, for example when using the old completion block based networking APIs.
 
 _Note: This parser needs to keep the whole HTTP message including body in memory and therefore won't work to receive large requests/responses like big files for example. You will run out of memory in that case._
 
@@ -76,7 +85,7 @@ await parser.setCallbacks { signal, state in
 try await parser.parse(httpData)
 ```
 
-_Note: This is a one-on-one wrapper around the llhttp C-implementation._
+_Note: This is a one-on-one wrapper around the event-based llhttp C-implementation._
 
 ## Advanced Features
 
@@ -86,6 +95,7 @@ _Note: This is a one-on-one wrapper around the llhttp C-implementation._
 - `.both` - Auto-detect based on first message
 
 ### Lenient Parsing Flags
+
 :warning: **Security Warning**: Lenient flags can expose you to HTTP request smuggling and other attacks. Use with extreme caution.
 
 For compatibility with legacy systems you can turn on lenient flags so incorrect HTTP messages are accepted.

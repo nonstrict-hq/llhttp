@@ -22,215 +22,207 @@ public protocol HTTPMessageType: Sendable {
     init?(builder: AnyHTTPMessageBuilder)
 }
 
-/// Container for HTTP message types including requests, responses, and unified message handling.
+/// Represents a complete HTTP request message.
 ///
-/// This enum provides different representations of HTTP messages:
-/// - `Request`: For HTTP request messages
-/// - `Response`: For HTTP response messages  
-/// - `Both`: For handling either request or response messages in a unified way
-public enum HTTPMessage {
-    /// A unified HTTP message type that can represent either a request or response.
+/// Contains all components of an HTTP request including method, URL, headers, and body.
+public struct HTTPRequest: HTTPMessageType {
+    /// The `LLHTTP.Mode` to use when parsing messages of this type.
+    public static let mode: LLHTTP.Mode = .request
+
+    /// The HTTP method (e.g., "GET", "POST", "PUT").
+    public let method: String
+
+    /// The request URL or path.
+    public let url: String
+
+    /// The HTTP protocol name (typically "HTTP").
+    public let `protocol`: String
+
+    /// The HTTP version (e.g., "1.1", "2.0").
+    public let version: String
+
+    /// HTTP headers as a dictionary mapping header names to arrays of values.
     ///
-    /// Use this type when you need to handle either HTTP requests and responses
-    /// in the same parsing context without knowing the message stream type in advance.
-    public enum Both: HTTPMessageType {
-        /// The `LLHTTP.Mode` to use when parsing messages of this type.
-        public static let mode: LLHTTP.Mode = .both
+    /// Each header can have multiple values if it occured multiple times in the HTTP message.
+    public let headers: [String: [String]]
 
-        /// An HTTP request message.
-        case request(Request)
-        
-        /// An HTTP response message.
-        case response(Response)
+    /// The request body.
+    public let body: HTTPMessage.Body
 
-        public init?(builder: AnyHTTPMessageBuilder) {
-            if let request = Request(builder: builder) {
-                self = .request(request)
-            } else if let response = Response(builder: builder) {
-                self = .response(response)
-            } else {
-                return nil
-            }
-        }
+    public init?(builder: AnyHTTPMessageBuilder) {
+        guard builder.type == .request else { return nil }
 
-        /// The HTTP protocol name (typically "HTTP").
-        public var `protocol`: String {
-            switch self {
-            case .request(let request):
-                return request.protocol
-            case .response(let response):
-                return response.protocol
-            }
-        }
-        
-        /// The HTTP version (e.g., "1.1", "2.0").
-        public var version: String {
-            switch self {
-            case .request(let request):
-                return request.version
-            case .response(let response):
-                return response.version
-            }
-        }
-        
-        /// HTTP headers as a dictionary mapping header names to arrays of values.
-        ///
-        /// Each header can have multiple values if it occured multiple times in the HTTP message.
-        public var headers: [String: [String]] {
-            switch self {
-            case .request(let request):
-                return request.headers
-            case .response(let response):
-                return response.headers
-            }
-        }
-        
-        /// The HTTP message body.
-        public var body: Body {
-            switch self {
-            case .request(let request):
-                return request.body
-            case .response(let response):
-                return response.body
-            }
-        }
+        guard let method = builder.headerValues[.method]?.first else { return nil }
+        self.method = String(decoding: method, as: UTF8.self)
 
-        /// The HTTP method (e.g., "GET", "POST") if this is a request message.
-        ///
-        /// - Returns: The method string for requests, or `nil` for responses.
-        public var method: String? {
-            switch self {
-            case .request(let request):
-                return request.method
-            case .response:
-                return nil
-            }
-        }
-        
-        /// The request URL if this is a request message.
-        ///
-        /// - Returns: The URL string for requests, or `nil` for responses.
-        public var url: String? {
-            switch self {
-            case .request(let request):
-                return request.url
-            case .response:
-                return nil
-            }
-        }
+        guard let url = builder.headerValues[.url]?.first else { return nil }
+        self.url = String(decoding: url, as: UTF8.self)
 
-        /// The HTTP status code and reason phrase if this is a response message.
-        ///
-        /// - Returns: The status string for responses (e.g., "200 OK"), or `nil` for requests.
-        public var status: String? {
-            switch self {
-            case .request:
-                return nil
-            case .response(let response):
-                return response.status
-            }
+        guard let `protocol` = builder.headerValues[.protocol]?.first else { return nil }
+        self.protocol = String(decoding: `protocol`, as: UTF8.self)
+
+        guard let version = builder.headerValues[.version]?.first else { return nil }
+        self.version = String(decoding: version, as: UTF8.self)
+
+        let headerPairs = zip(
+            builder.headerValues[.headerField, default: []].map { String(decoding: $0, as: UTF8.self) },
+            builder.headerValues[.headerValue, default: []].map { String(decoding: $0, as: UTF8.self) }
+        )
+        self.headers = Dictionary(grouping: headerPairs) { $0.0 }
+            .mapValues { $0.map { $0.1 } }
+            .filter { !($0.key.isEmpty && $0.value.allSatisfy(\.isEmpty)) }
+
+        self.body = HTTPMessage.Body(chunkValues: builder.chunkValues)
+    }
+}
+
+/// Represents a complete HTTP response message.
+///
+/// Contains all components of an HTTP response including status, headers, and body.
+/// This struct is immutable and created from parsed HTTP response data.
+public struct HTTPResponse: HTTPMessageType {
+    public static let mode: LLHTTP.Mode = .response
+
+    /// The HTTP protocol name (typically "HTTP").
+    public let `protocol`: String
+
+    /// The HTTP version (e.g., "1.1", "2.0").
+    public let version: String
+
+    /// The HTTP status code and reason phrase (e.g., "200 OK", "404 Not Found").
+    public let status: String
+
+    /// HTTP headers as a dictionary mapping header names to arrays of values.
+    ///
+    /// Each header can have multiple values if it occured multiple times in the HTTP message.
+    public let headers: [String: [String]]
+
+    /// The response body.
+    public let body: HTTPMessage.Body
+
+    public init?(builder: AnyHTTPMessageBuilder) {
+        guard builder.type == .response else { return nil }
+
+        guard let `protocol` = builder.headerValues[.protocol]?.first else { return nil }
+        self.protocol = String(decoding: `protocol`, as: UTF8.self)
+
+        guard let version = builder.headerValues[.version]?.first else { return nil }
+        self.version = String(decoding: version, as: UTF8.self)
+
+        guard let status = builder.headerValues[.status]?.first else { return nil }
+        self.status = String(decoding: status, as: UTF8.self)
+
+        let headerPairs = zip(
+            builder.headerValues[.headerField, default: []].map { String(decoding: $0, as: UTF8.self) },
+            builder.headerValues[.headerValue, default: []].map { String(decoding: $0, as: UTF8.self) }
+        )
+        self.headers = Dictionary(grouping: headerPairs) { $0.0 }
+            .mapValues { $0.map { $0.1 } }
+            .filter { !($0.key.isEmpty && $0.value.allSatisfy(\.isEmpty)) }
+
+        self.body = HTTPMessage.Body(chunkValues: builder.chunkValues)
+    }
+}
+
+/// A unified HTTP message type that can represent either a request or response.
+///
+/// Use this type when you need to handle both HTTP requests and responses
+/// in the same parsing context without knowing the message stream type in advance.
+public enum HTTPMessage: HTTPMessageType {
+    /// The `LLHTTP.Mode` to use when parsing messages of this type.
+    public static let mode: LLHTTP.Mode = .both
+
+    /// An HTTP request message.
+    case request(HTTPRequest)
+
+    /// An HTTP response message.
+    case response(HTTPResponse)
+
+    public init?(builder: AnyHTTPMessageBuilder) {
+        if let request = HTTPRequest(builder: builder) {
+            self = .request(request)
+        } else if let response = HTTPResponse(builder: builder) {
+            self = .response(response)
+        } else {
+            return nil
         }
     }
 
-    /// Represents a complete HTTP request message.
-    ///
-    /// Contains all components of an HTTP request including method, URL, headers, and body.
-    public struct Request: HTTPMessageType {
-        /// The `LLHTTP.Mode` to use when parsing messages of this type.
-        public static let mode: LLHTTP.Mode = .request
-
-        /// The HTTP method (e.g., "GET", "POST", "PUT").
-        public let method: String
-        
-        /// The request URL or path.
-        public let url: String
-        
-        /// The HTTP protocol name (typically "HTTP").
-        public let `protocol`: String
-        
-        /// The HTTP version (e.g., "1.1", "2.0").
-        public let version: String
-        
-        /// HTTP headers as a dictionary mapping header names to arrays of values.
-        ///
-        /// Each header can have multiple values if it occured multiple times in the HTTP message.
-        public let headers: [String: [String]]
-        
-        /// The request body.
-        public let body: Body
-
-        public init?(builder: AnyHTTPMessageBuilder) {
-            guard builder.type == .request else { return nil }
-
-            guard let method = builder.headerValues[.method]?.first else { return nil }
-            self.method = String(decoding: method, as: UTF8.self)
-
-            guard let url = builder.headerValues[.url]?.first else { return nil }
-            self.url = String(decoding: url, as: UTF8.self)
-
-            guard let `protocol` = builder.headerValues[.protocol]?.first else { return nil }
-            self.protocol = String(decoding: `protocol`, as: UTF8.self)
-
-            guard let version = builder.headerValues[.version]?.first else { return nil }
-            self.version = String(decoding: version, as: UTF8.self)
-
-            let headerPairs = zip(
-                builder.headerValues[.headerField, default: []].map { String(decoding: $0, as: UTF8.self) },
-                builder.headerValues[.headerValue, default: []].map { String(decoding: $0, as: UTF8.self) }
-            )
-            self.headers = Dictionary(grouping: headerPairs) { $0.0 }
-                .mapValues { $0.map { $0.1 } }
-                .filter { !($0.key.isEmpty && $0.value.allSatisfy(\.isEmpty)) }
-
-            self.body = Body(chunkValues: builder.chunkValues)
+    /// The HTTP protocol name (typically "HTTP").
+    public var `protocol`: String {
+        switch self {
+        case .request(let request):
+            return request.protocol
+        case .response(let response):
+            return response.protocol
         }
     }
 
-    /// Represents a complete HTTP response message.
+    /// The HTTP version (e.g., "1.1", "2.0").
+    public var version: String {
+        switch self {
+        case .request(let request):
+            return request.version
+        case .response(let response):
+            return response.version
+        }
+    }
+
+    /// HTTP headers as a dictionary mapping header names to arrays of values.
     ///
-    /// Contains all components of an HTTP response including status, headers, and body.
-    /// This struct is immutable and created from parsed HTTP response data.
-    public struct Response: HTTPMessageType {
-        public static let mode: LLHTTP.Mode = .response
+    /// Each header can have multiple values if it occured multiple times in the HTTP message.
+    public var headers: [String: [String]] {
+        switch self {
+        case .request(let request):
+            return request.headers
+        case .response(let response):
+            return response.headers
+        }
+    }
 
-        /// The HTTP protocol name (typically "HTTP").
-        public let `protocol`: String
-        
-        /// The HTTP version (e.g., "1.1", "2.0").
-        public let version: String
-        
-        /// The HTTP status code and reason phrase (e.g., "200 OK", "404 Not Found").
-        public let status: String
-        
-        /// HTTP headers as a dictionary mapping header names to arrays of values.
-        ///
-        /// Each header can have multiple values if it occured multiple times in the HTTP message.
-        public let headers: [String: [String]]
-        
-        /// The response body.
-        public let body: Body
+    /// The HTTP message body.
+    public var body: Body {
+        switch self {
+        case .request(let request):
+            return request.body
+        case .response(let response):
+            return response.body
+        }
+    }
 
-        public init?(builder: AnyHTTPMessageBuilder) {
-            guard builder.type == .response else { return nil }
+    /// The HTTP method (e.g., "GET", "POST") if this is a request message.
+    ///
+    /// - Returns: The method string for requests, or `nil` for responses.
+    public var method: String? {
+        switch self {
+        case .request(let request):
+            return request.method
+        case .response:
+            return nil
+        }
+    }
 
-            guard let `protocol` = builder.headerValues[.protocol]?.first else { return nil }
-            self.protocol = String(decoding: `protocol`, as: UTF8.self)
+    /// The request URL if this is a request message.
+    ///
+    /// - Returns: The URL string for requests, or `nil` for responses.
+    public var url: String? {
+        switch self {
+        case .request(let request):
+            return request.url
+        case .response:
+            return nil
+        }
+    }
 
-            guard let version = builder.headerValues[.version]?.first else { return nil }
-            self.version = String(decoding: version, as: UTF8.self)
-
-            guard let status = builder.headerValues[.status]?.first else { return nil }
-            self.status = String(decoding: status, as: UTF8.self)
-
-            let headerPairs = zip(
-                builder.headerValues[.headerField, default: []].map { String(decoding: $0, as: UTF8.self) },
-                builder.headerValues[.headerValue, default: []].map { String(decoding: $0, as: UTF8.self) }
-            )
-            self.headers = Dictionary(grouping: headerPairs) { $0.0 }
-                .mapValues { $0.map { $0.1 } }
-                .filter { !($0.key.isEmpty && $0.value.allSatisfy(\.isEmpty)) }
-
-            self.body = Body(chunkValues: builder.chunkValues)
+    /// The HTTP status code and reason phrase if this is a response message.
+    ///
+    /// - Returns: The status string for responses (e.g., "200 OK"), or `nil` for requests.
+    public var status: String? {
+        switch self {
+        case .request:
+            return nil
+        case .response(let response):
+            return response.status
         }
     }
 

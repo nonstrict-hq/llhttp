@@ -52,13 +52,13 @@ public actor HTTPMessagesParser<MessageType: HTTPMessageType> {
 
     /// Initialized the parser to parse complete HTTP messages of the inferred type.
     public init() {
-        self.init(mode: MessageType.self)
+        self.init(messageType: MessageType.self)
     }
     
     /// Initialized the parser to parse complete HTTP messages of the given type.
     ///
-    /// - Parameter mode: The type of message to parse, for example: `HTTPMessage.Request.self`, `HTTPMessage.Respone.self` or `HTTPMessage.Both.self`
-    public init(mode: MessageType.Type) {
+    /// - Parameter mode: The type of message to parse, for example: `HTTPRequest.self`, `HTTPResponse.self` or `HTTPMessage.self`
+    public init(messageType: MessageType.Type) {
         let proxy = LLHTTPPreconcurrencyProxy(mode: MessageType.mode)
         proxy.setInternalCallbacks { [parserState = state] signal, state in
             let message: MessageType? = parserState.withLock { $0.builder.append(signal, state: state) }
@@ -152,7 +152,7 @@ public actor HTTPMessagesParser<MessageType: HTTPMessageType> {
 
         /// Initialized the parser to parse complete HTTP messages of the given type.
         ///
-        /// - Parameter mode: The type of message to parse, for example: `HTTPMessage.Request.self`, `HTTPMessage.Respone.self` or `HTTPMessage.Both.self`
+        /// - Parameter mode: The type of message to parse, for example: `HTTPRequest.self`, `HTTPResponse.self` or `HTTPMessage.self`
         public init(mode: MessageType.Type) {
             builder = HTTPMessageBuilder()
             let llhttpProxy = LLHTTPPreconcurrencyProxy(mode: MessageType.mode)

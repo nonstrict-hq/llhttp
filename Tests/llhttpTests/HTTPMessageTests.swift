@@ -25,7 +25,7 @@ struct HTTPMessageTests {
                 ]
             )
             
-            let request = try #require(HTTPMessage.Request(builder: builder))
+            let request = try #require(HTTPRequest(builder: builder))
             #expect(request.method == "GET")
             #expect(request.url == "/api/users")
             #expect(request.version == "1.1")
@@ -48,7 +48,7 @@ struct HTTPMessageTests {
                 ]
             )
             
-            let request = try #require(HTTPMessage.Request(builder: builder))
+            let request = try #require(HTTPRequest(builder: builder))
             #expect(request.method == "HEAD")
             #expect(request.url == "/")
             
@@ -58,7 +58,7 @@ struct HTTPMessageTests {
         @Test
         func testRequestWithInvalidBuilderType() {
             let builder = MockHTTPMessageBuilder(type: .response)
-            let request = HTTPMessage.Request(builder: builder)
+            let request = HTTPRequest(builder: builder)
             #expect(request == nil)
         }
     }
@@ -82,7 +82,7 @@ struct HTTPMessageTests {
                 ]
             )
             
-            let response = try #require(HTTPMessage.Response(builder: builder))
+            let response = try #require(HTTPResponse(builder: builder))
             #expect(response.status == "OK")
             #expect(response.version == "1.1")
             #expect(response.protocol == "HTTP")
@@ -109,7 +109,7 @@ struct HTTPMessageTests {
                 ]
             )
             
-            let response = try #require(HTTPMessage.Response(builder: builder))
+            let response = try #require(HTTPResponse(builder: builder))
             
             let expectedChunks = [
                 HTTPMessage.Chunk(data: "Hello".data(using: .ascii)!, extensions: [:]),
@@ -121,7 +121,7 @@ struct HTTPMessageTests {
         @Test
         func testResponseWithInvalidBuilderType() {
             let builder = MockHTTPMessageBuilder(type: .request)
-            let response = HTTPMessage.Response(builder: builder)
+            let response = HTTPResponse(builder: builder)
             #expect(response == nil)
         }
     }
@@ -141,7 +141,7 @@ struct HTTPMessageTests {
                 ]
             )
             
-            let both = try #require(HTTPMessage.Both(builder: builder))
+            let both = try #require(HTTPMessage(builder: builder))
             
             if case .request(let request) = both {
                 #expect(request.method == "POST")
@@ -162,7 +162,7 @@ struct HTTPMessageTests {
                 ]
             )
             
-            let both = try #require(HTTPMessage.Both(builder: builder))
+            let both = try #require(HTTPMessage(builder: builder))
             
             if case .response(let response) = both {
                 #expect(response.status == "Not Found")
@@ -186,7 +186,7 @@ struct HTTPMessageTests {
                 ]
             )
             
-            let requestBoth = try #require(HTTPMessage.Both(builder: requestBuilder))
+            let requestBoth = try #require(HTTPMessage(builder: requestBuilder))
             #expect(requestBoth.method == "GET")
             #expect(requestBoth.url == "/test")
             #expect(requestBoth.status == nil)
@@ -204,7 +204,7 @@ struct HTTPMessageTests {
                 ]
             )
             
-            let responseBoth = try #require(HTTPMessage.Both(builder: responseBuilder))
+            let responseBoth = try #require(HTTPMessage(builder: responseBuilder))
             #expect(responseBoth.method == nil)
             #expect(responseBoth.url == nil)
             #expect(responseBoth.status == "OK")
@@ -218,7 +218,7 @@ struct HTTPMessageTests {
                 headerValues: [:]  // No method or status
             )
             
-            let both = HTTPMessage.Both(builder: builder)
+            let both = HTTPMessage(builder: builder)
             #expect(both == nil)
         }
     }

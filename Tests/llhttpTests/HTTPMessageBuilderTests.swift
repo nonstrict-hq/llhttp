@@ -61,15 +61,15 @@ struct HTTPMessageBuilderTests {
             
             // Header 1
             builder.append(LLHTTP.Payload(type: .headerField, data: "Host".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.headerFieldComplete, state: state)
+            let _: HTTPMessage? = builder.append(.headerFieldComplete, state: state)
             builder.append(LLHTTP.Payload(type: .headerValue, data: "example.com".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.headerValueComplete, state: state)
+            let _: HTTPMessage? = builder.append(.headerValueComplete, state: state)
 
             // Header 2
             builder.append(LLHTTP.Payload(type: .headerField, data: "Cookie".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.headerFieldComplete, state: state)
+            let _: HTTPMessage? = builder.append(.headerFieldComplete, state: state)
             builder.append(LLHTTP.Payload(type: .headerValue, data: "a=1".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.headerValueComplete, state: state)
+            let _: HTTPMessage? = builder.append(.headerValueComplete, state: state)
 
             try #require(builder.headerValues[.headerField]?.count == 3)
             try #require(builder.headerValues[.headerValue]?.count == 3)
@@ -87,9 +87,9 @@ struct HTTPMessageBuilderTests {
             let state = createMockState()
             
             builder.append(LLHTTP.Payload(type: .body, data: "part1".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.chunkComplete, state: state)
+            let _: HTTPMessage? = builder.append(.chunkComplete, state: state)
             builder.append(LLHTTP.Payload(type: .body, data: "part2".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.chunkComplete, state: state)
+            let _: HTTPMessage? = builder.append(.chunkComplete, state: state)
 
             let combinedBody = builder.chunkValues.compactMap { $0[.body] }.flatMap { $0 }.reduce(Data(), +)
             #expect(combinedBody == "part1part2".data(using: .ascii)!)
@@ -101,18 +101,18 @@ struct HTTPMessageBuilderTests {
             let state = createMockState()
 
             // Chunk 1
-            let _: HTTPMessage.Both? = builder.append(.chunkHeader, state: state)
+            let _: HTTPMessage? = builder.append(.chunkHeader, state: state)
             builder.append(LLHTTP.Payload(type: .chunkExtensionName, data: "ext1".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.chunkExtensionNameComplete, state: state)
+            let _: HTTPMessage? = builder.append(.chunkExtensionNameComplete, state: state)
             builder.append(LLHTTP.Payload(type: .chunkExtensionValue, data: "val1".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.chunkExtensionValueComplete, state: state)
+            let _: HTTPMessage? = builder.append(.chunkExtensionValueComplete, state: state)
             builder.append(LLHTTP.Payload(type: .body, data: "chunk body 1".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.chunkComplete, state: state)
+            let _: HTTPMessage? = builder.append(.chunkComplete, state: state)
 
             // Chunk 2
-            let _: HTTPMessage.Both? = builder.append(.chunkHeader, state: state)
+            let _: HTTPMessage? = builder.append(.chunkHeader, state: state)
             builder.append(LLHTTP.Payload(type: .body, data: "chunk body 2".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.chunkComplete, state: state)
+            let _: HTTPMessage? = builder.append(.chunkComplete, state: state)
 
             #expect(builder.chunkValues.count == 3) // 2 chunks + ready to be used empty one
 
@@ -136,7 +136,7 @@ struct HTTPMessageBuilderTests {
             var builder = HTTPMessageBuilder()
             let state = createMockState(type: .both)
 
-            let message: HTTPMessage.Both? = builder.append(.messageBegin, state: state)
+            let message: HTTPMessage? = builder.append(.messageBegin, state: state)
             
             #expect(message == nil)
             #expect(builder.headerValues.isEmpty)
@@ -150,16 +150,16 @@ struct HTTPMessageBuilderTests {
             let state = createMockState()
 
             builder.append(LLHTTP.Payload(type: .url, data: "/".data(using: .ascii)!), state: state)
-            let message1: HTTPMessage.Both? = builder.append(.urlComplete, state: state)
+            let message1: HTTPMessage? = builder.append(.urlComplete, state: state)
             #expect(message1 == nil)
             #expect(builder.headerValues[.url] != nil)
 
             builder.append(LLHTTP.Payload(type: .headerField, data: "Host".data(using: .ascii)!), state: state)
-            let message2: HTTPMessage.Both? = builder.append(.headerFieldComplete, state: state)
+            let message2: HTTPMessage? = builder.append(.headerFieldComplete, state: state)
             #expect(message2 == nil)
 
             builder.append(LLHTTP.Payload(type: .headerValue, data: "example.com".data(using: .ascii)!), state: state)
-            let message3: HTTPMessage.Both? = builder.append(.headerValueComplete, state: state)
+            let message3: HTTPMessage? = builder.append(.headerValueComplete, state: state)
             #expect(message3 == nil)
 
             builder.append(LLHTTP.Payload(type: .body, data: "test".data(using: .ascii)!), state: state)
@@ -177,8 +177,8 @@ struct HTTPMessageBuilderTests {
             builder.append(LLHTTP.Payload(type: .headerField, data: "Content-Length".data(using: .ascii)!), state: state)
             builder.append(LLHTTP.Payload(type: .headerValue, data: "4".data(using: .ascii)!), state: state)
             builder.append(LLHTTP.Payload(type: .body, data: "test".data(using: .ascii)!), state: state)
-            let message: HTTPMessage.Both? = builder.append(.messageComplete, state: state)
-            let _: HTTPMessage.Both? = builder.append(.reset, state: state)
+            let message: HTTPMessage? = builder.append(.messageComplete, state: state)
+            let _: HTTPMessage? = builder.append(.reset, state: state)
 
             #expect(message != nil)
             if case .request(let request) = message {
@@ -203,7 +203,7 @@ struct HTTPMessageBuilderTests {
             builder.append(LLHTTP.Payload(type: .method, data: "GET".data(using: .ascii)!), state: state)
             #expect(builder.type == .request)
 
-            let _: HTTPMessage.Both? = builder.append(.reset, state: state)
+            let _: HTTPMessage? = builder.append(.reset, state: state)
             
             #expect(builder.type == .both)
             #expect(builder.headerValues.isEmpty)
@@ -220,19 +220,19 @@ struct HTTPMessageBuilderTests {
             #expect(builder.chunkValues[0].isEmpty)
 
             // First chunk
-            let _: HTTPMessage.Both? = builder.append(.chunkHeader, state: state)
+            let _: HTTPMessage? = builder.append(.chunkHeader, state: state)
             try #require(builder.chunkValues.count == 1)
             #expect(builder.chunkValues[0].isEmpty)
             builder.append(LLHTTP.Payload(type: .body, data: "chunk1".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.chunkComplete, state: state)
+            let _: HTTPMessage? = builder.append(.chunkComplete, state: state)
             #expect(builder.chunkValues.count == 2)
             #expect(builder.chunkValues[0][.body]?.first == "chunk1".data(using: .ascii)!)
 
             // Second chunk
-            let _: HTTPMessage.Both? = builder.append(.chunkHeader, state: state)
+            let _: HTTPMessage? = builder.append(.chunkHeader, state: state)
             #expect(builder.chunkValues.count == 2)
             builder.append(LLHTTP.Payload(type: .body, data: "chunk2".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.chunkComplete, state: state)
+            let _: HTTPMessage? = builder.append(.chunkComplete, state: state)
             #expect(builder.chunkValues.count == 3)
             #expect(builder.chunkValues[1][.body]?.first == "chunk2".data(using: .ascii)!)
         }
@@ -264,8 +264,8 @@ struct HTTPMessageBuilderTests {
             builder2.append(url, state: state)
             builder2.append(method, state: state)
 
-            let message1: HTTPMessage.Both? = builder1.append(.messageComplete, state: state)
-            let message2: HTTPMessage.Both? = builder2.append(.messageComplete, state: state)
+            let message1: HTTPMessage? = builder1.append(.messageComplete, state: state)
+            let message2: HTTPMessage? = builder2.append(.messageComplete, state: state)
 
             #expect(message1 != nil)
             #expect(message2 != nil)
@@ -289,16 +289,16 @@ struct HTTPMessageBuilderTests {
             builder.append(LLHTTP.Payload(type: .url, data: "/".data(using: .ascii)!), state: state)
 
             builder.append(LLHTTP.Payload(type: .headerField, data: "Set-Cookie".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.headerFieldComplete, state: state)
+            let _: HTTPMessage? = builder.append(.headerFieldComplete, state: state)
             builder.append(LLHTTP.Payload(type: .headerValue, data: "a=1".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.headerValueComplete, state: state)
+            let _: HTTPMessage? = builder.append(.headerValueComplete, state: state)
 
             builder.append(LLHTTP.Payload(type: .headerField, data: "Set-Cookie".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.headerFieldComplete, state: state)
+            let _: HTTPMessage? = builder.append(.headerFieldComplete, state: state)
             builder.append(LLHTTP.Payload(type: .headerValue, data: "b=2".data(using: .ascii)!), state: state)
-            let _: HTTPMessage.Both? = builder.append(.headerValueComplete, state: state)
+            let _: HTTPMessage? = builder.append(.headerValueComplete, state: state)
 
-            let message: HTTPMessage.Both? = builder.append(.messageComplete, state: state)
+            let message: HTTPMessage? = builder.append(.messageComplete, state: state)
 
             #expect(message != nil)
             if case .request(let request) = message {
@@ -321,7 +321,7 @@ struct HTTPMessageBuilderTests {
             let largeData = Data(repeating: 0, count: 1_024 * 1_024) // 1MB
             builder.append(LLHTTP.Payload(type: .body, data: largeData), state: state)
             
-            let message: HTTPMessage.Both? = builder.append(.messageComplete, state: state)
+            let message: HTTPMessage? = builder.append(.messageComplete, state: state)
             
             #expect(message != nil)
             if case .request(let request) = message {
@@ -336,12 +336,12 @@ struct HTTPMessageBuilderTests {
             var builder = HTTPMessageBuilder()
             let state = createMockState()
 
-            let _: HTTPMessage.Both? = builder.append(.chunkHeader, state: state)
+            let _: HTTPMessage? = builder.append(.chunkHeader, state: state)
             builder.append(LLHTTP.Payload(type: .chunkExtensionName, data: "ext1".data(using: .ascii)!), state: state)
             builder.append(LLHTTP.Payload(type: .chunkExtensionValue, data: "val1".data(using: .ascii)!), state: state)
             builder.append(LLHTTP.Payload(type: .chunkExtensionName, data: "ext2".data(using: .ascii)!), state: state)
             builder.append(LLHTTP.Payload(type: .chunkExtensionValue, data: "".data(using: .ascii)!), state: state) // extension with no value
-            let _: HTTPMessage.Both? = builder.append(.chunkComplete, state: state)
+            let _: HTTPMessage? = builder.append(.chunkComplete, state: state)
 
             #expect(builder.chunkValues.count == 2)
             let chunk = builder.chunkValues[0]
