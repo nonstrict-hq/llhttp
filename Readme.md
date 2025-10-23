@@ -36,7 +36,7 @@ If you just want to handle complete HTTP messages:
 ```swift
 import llhttp
 
-let parser = await HTTPMessagesParser(mode: HTTPMessage.Both.self)
+let parser = HTTPMessagesParser(mode: HTTPMessage.Both.self)
 
 // Keep reading data from the network connection and parse it
 Task {

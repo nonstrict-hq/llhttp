@@ -39,7 +39,7 @@ public actor HTTPMessagesParser<MessageType: HTTPMessageType> {
     ///
     /// Can freely be configured and called to setup custom behaviour.
     /// For example to set lenient flags, add custom callbacks or resume parsing.
-    public let llhttp: LLHTTP
+    public private(set) var llhttp: LLHTTP!
 
     /// An async stream of all completed HTTP messages.
     ///
@@ -55,27 +55,25 @@ public actor HTTPMessagesParser<MessageType: HTTPMessageType> {
     }
 
     /// Initialized the parser to parse complete HTTP messages of the inferred type.
-    public init() async {
-        await self.init(mode: MessageType.self)
+    public init() {
+        self.init(mode: MessageType.self)
     }
     
     /// Initialized the parser to parse complete HTTP messages of the given type.
     ///
     /// - Parameter mode: The type of message to parse, for example: `HTTPMessage.Request.self`, `HTTPMessage.Respone.self` or `HTTPMessage.Both.self`
-    public init(mode: MessageType.Type) async {
+    public init(mode: MessageType.Type) {
         let (stream, continuation) = AsyncStream<MessageType>.makeStream(bufferingPolicy: .unbounded)
         completedMessages = stream
 
-        llhttp = LLHTTP(llhttp: LLHTTPPreconcurrencyProxy(mode: MessageType.mode))
-        await llhttp.setInternalCallbacks { [weak self] signal, state in
-            guard let self else { return .error }
-
-            let message: MessageType? = self.state.withLock { $0.builder.append(signal, state: state) }
+        let proxy = LLHTTPPreconcurrencyProxy(mode: MessageType.mode)
+        proxy.setInternalCallbacks { [parserState = state] signal, state in
+            let message: MessageType? = parserState.withLock { $0.builder.append(signal, state: state) }
             guard let message else { return .proceed }
 
             do {
                 continuation.yield(message)
-                let messageHandlerAction = try self.state.withLock { try $0.messageHandler(message) }
+                let messageHandlerAction = try parserState.withLock { try $0.messageHandler(message) }
                 switch messageHandlerAction {
                 case .pause:
                     return .pause
@@ -85,11 +83,11 @@ public actor HTTPMessagesParser<MessageType: HTTPMessageType> {
             } catch {
                 return .error
             }
-        } payloadHandler: { [weak self] payload, state in
-            guard let self else { return .error }
-            self.state.withLock { $0.builder.append(payload, state: state) }
+        } payloadHandler: { [parserState = state] payload, state in
+            parserState.withLock { $0.builder.append(payload, state: state) }
             return .proceed
         }
+        llhttp = LLHTTP(llhttp: proxy)
     }
 
     /// Parse full or partial HTTP request/response data.
@@ -264,17 +262,5 @@ internal class LLHTTPPreconcurrencyProxy: LLHTTP.Preconcurrency {
             }
         }
 
-    }
-}
-
-private extension LLHTTP {
-    func setInternalCallbacks(signalHandler: @escaping SignalHandler = { _, _ in .proceed },
-                                       payloadHandler: @escaping PayloadHandler = { _, _ in .proceed },
-                                       headersCompleteHandler: @escaping HeadersCompleteHandler = { _ in .proceed }) {
-        guard let preconcurrency = preconcurrency as? LLHTTPPreconcurrencyProxy else {
-            assertionFailure("Unable to cast preconcurrency to LLHTTPPreconcurrencyProxy")
-            return
-        }
-        preconcurrency.setInternalCallbacks(signalHandler: signalHandler, payloadHandler: payloadHandler, headersCompleteHandler: headersCompleteHandler)
     }
 }

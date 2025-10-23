@@ -12,7 +12,7 @@ struct HTTPMessagesParserTests {
         func testParserHasLLHTTPInstance() async {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
 
-            let parser = await HTTPMessagesParser(mode: HTTPMessage.Request.self)
+            let parser = HTTPMessagesParser(mode: HTTPMessage.Request.self)
             let llhttp = await parser.llhttp
             
             // LLHTTP instance is available and properly initialized
@@ -23,7 +23,7 @@ struct HTTPMessagesParserTests {
         func testDefaultMessageHandler() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             let handler = parser.messageHandler
             
             // Default handler should always return proceed
@@ -40,7 +40,7 @@ struct HTTPMessagesParserTests {
         func testParseSimpleRequest() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             // Set up stream consumer to collect messages
             let messageCollector = MessageCollector<HTTPMessage.Request>()
@@ -66,7 +66,7 @@ struct HTTPMessagesParserTests {
         func testParseSimpleResponse() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Response>()
+            let parser = HTTPMessagesParser<HTTPMessage.Response>()
             
             let messageCollector = MessageCollector<HTTPMessage.Response>()
             Task {
@@ -89,7 +89,7 @@ struct HTTPMessagesParserTests {
         func testParseRequestWithHeadersAndBody() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             let messageCollector = MessageCollector<HTTPMessage.Request>()
             Task {
@@ -114,7 +114,7 @@ struct HTTPMessagesParserTests {
         func testParsePipelinedRequests() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             let messageCollector = MessageCollector<HTTPMessage.Request>()
             Task {
@@ -141,7 +141,7 @@ struct HTTPMessagesParserTests {
         func testStreamingMessages() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             let messageCounter = MessageCounter()
             let streamTask = Task {
@@ -170,7 +170,7 @@ struct HTTPMessagesParserTests {
         func testMessageHandlerPause() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             let handledMessages = UncheckedSendableBox(0)
             
@@ -192,7 +192,7 @@ struct HTTPMessagesParserTests {
         func testMessageHandlerProceed() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             let handledMessages = UncheckedSendableBox(0)
             
@@ -211,7 +211,7 @@ struct HTTPMessagesParserTests {
         func testMessageHandlerReceivesCorrectData() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             let capturedMethod = UncheckedSendableBox<String?>(nil)
             let capturedURL = UncheckedSendableBox<String?>(nil)
@@ -233,7 +233,7 @@ struct HTTPMessagesParserTests {
         func testMessageHandlerThrowsError() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             struct CustomError: Error {}
             
@@ -255,7 +255,7 @@ struct HTTPMessagesParserTests {
         func testInvalidHTTPDataThrowsError() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             await #expect(throws: LLHTTPError.self) {
                 try await parser.parse(TestHTTP.invalidData)
@@ -266,7 +266,7 @@ struct HTTPMessagesParserTests {
         func testParserRecoversAfterReset() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             // First parse invalid data
             await #expect(throws: LLHTTPError.self) {
@@ -298,7 +298,7 @@ struct HTTPMessagesParserTests {
         func testParseMessageInChunks() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             let messageCollector = MessageCollector<HTTPMessage.Request>()
             Task {
@@ -329,7 +329,7 @@ struct HTTPMessagesParserTests {
         func testIncompleteMessage() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
             
             let messageCollector = MessageCollector<HTTPMessage.Request>()
             Task {
@@ -355,7 +355,7 @@ struct HTTPMessagesParserTests {
         func testParseChunkedResponse() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Response>()
+            let parser = HTTPMessagesParser<HTTPMessage.Response>()
             
             let messageCollector = MessageCollector<HTTPMessage.Response>()
             Task {
@@ -377,7 +377,7 @@ struct HTTPMessagesParserTests {
         func testChunkedWithExtensions() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
             
-            let parser = await HTTPMessagesParser<HTTPMessage.Response>()
+            let parser = HTTPMessagesParser<HTTPMessage.Response>()
             
             let messageCollector = MessageCollector<HTTPMessage.Response>()
             Task {
@@ -412,7 +412,7 @@ struct HTTPMessagesParserTests {
         func testConcurrentParseCalls() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
 
-            let parser = await HTTPMessagesParser<HTTPMessage.Request>()
+            let parser = HTTPMessagesParser<HTTPMessage.Request>()
 
             let messageCollector = MessageCollector<HTTPMessage.Request>()
             Task {
