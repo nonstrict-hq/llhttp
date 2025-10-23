@@ -43,17 +43,12 @@ Task {
     do {
         while true {
             let content = try await connection.receive(atMost: 512).content
-            try await parser.parse(content)
+            for message in try await parser.parse(content) {
+                // Handle incoming HTTP message as you like
+            }
         }
     } catch {
         try await parser.finish()
-    }
-}
-
-// When a complete HTTP message is received handle it
-Task {
-    for await message in parser.completedMessages {
-        // TODO: Handle incomming HTTP message
     }
 }
 ```
