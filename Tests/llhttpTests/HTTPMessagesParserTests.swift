@@ -39,22 +39,13 @@ struct HTTPMessagesParserTests {
         @Test
         func testParseSimpleRequest() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
-            
+
             let parser = HTTPMessagesParser<HTTPMessage.Request>()
-            
-            // Set up stream consumer to collect messages
-            let messageCollector = MessageCollector<HTTPMessage.Request>()
-            Task {
-                for await message in await parser.completedMessages {
-                    await messageCollector.addMessage(message)
-                }
-            }
-            
+
             // Parse a simple request
-            try await parser.parse(TestHTTP.minimalRequest)
-            
-            // Wait for processing and verify message was parsed
-            let messages = await messageCollector.getMessages()
+            let messages = try await parser.parse(TestHTTP.minimalRequest)
+
+            // Verify message was parsed
             let firstMessage = try #require(messages.first)
             #expect(firstMessage.method == "GET")
             #expect(firstMessage.url == "/")
@@ -65,20 +56,12 @@ struct HTTPMessagesParserTests {
         @Test
         func testParseSimpleResponse() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
-            
-            let parser = HTTPMessagesParser<HTTPMessage.Response>()
-            
-            let messageCollector = MessageCollector<HTTPMessage.Response>()
-            Task {
-                for await message in await parser.completedMessages {
-                    await messageCollector.addMessage(message)
-                }
-            }
-            
-            try await parser.parse(TestHTTP.minimalResponse)
-            try await parser.llhttp.finish()
 
-            let messages = await messageCollector.getMessages()
+            let parser = HTTPMessagesParser<HTTPMessage.Response>()
+
+            _ = try await parser.parse(TestHTTP.minimalResponse)
+            let messages = try await parser.finish()
+
             let firstMessage = try #require(messages.first)
             #expect(firstMessage.status == "OK")
             #expect(firstMessage.version == "1.1")
@@ -88,48 +71,32 @@ struct HTTPMessagesParserTests {
         @Test
         func testParseRequestWithHeadersAndBody() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
-            
+
             let parser = HTTPMessagesParser<HTTPMessage.Request>()
-            
-            let messageCollector = MessageCollector<HTTPMessage.Request>()
-            Task {
-                for await message in await parser.completedMessages {
-                    await messageCollector.addMessage(message)
-                }
-            }
-            
-            try await parser.parse(TestHTTP.requestWithHeaders)
-            
-            let messages = await messageCollector.getMessages()
+
+            let messages = try await parser.parse(TestHTTP.requestWithHeaders)
+
             let firstMessage = try #require(messages.first)
             #expect(firstMessage.method == "GET")
             #expect(firstMessage.url == "/path")
             #expect(firstMessage.headers["Host"] == ["example.com"])
             #expect(firstMessage.headers["Content-Length"] == ["5"])
-            
+
             #expect(firstMessage.body == .single("Hello".data(using: .ascii)!))
         }
         
         @Test
         func testParsePipelinedRequests() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
-            
+
             let parser = HTTPMessagesParser<HTTPMessage.Request>()
-            
-            let messageCollector = MessageCollector<HTTPMessage.Request>()
-            Task {
-                for await message in await parser.completedMessages {
-                    await messageCollector.addMessage(message)
-                }
-            }
-            
+
             // Two requests in one buffer
             let pipelinedData = TestHTTP.minimalRequest + TestHTTP.minimalRequest
-            try await parser.parse(pipelinedData)
-            
-            let messages = await messageCollector.getMessages()
+            let messages = try await parser.parse(pipelinedData)
+
             #expect(messages.count == 2)
-            
+
             // Both should be identical minimal requests
             for message in messages {
                 #expect(message.method == "GET")
@@ -140,26 +107,17 @@ struct HTTPMessagesParserTests {
         @Test
         func testStreamingMessages() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
-            
+
             let parser = HTTPMessagesParser<HTTPMessage.Request>()
-            
-            let messageCounter = MessageCounter()
-            let streamTask = Task {
-                for await message in await parser.completedMessages {
-                    await messageCounter.increment()
-                    #expect(message.method == "GET")
-                }
-            }
-            
+
             // Parse multiple requests sequentially
-            try await parser.parse(TestHTTP.minimalRequest)
-            try await parser.parse(TestHTTP.requestWithHeaders)
-            
-            // Give stream time to process
-            try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-            streamTask.cancel()
-            
-            #expect(await messageCounter.getCount() == 2)
+            let messages1 = try await parser.parse(TestHTTP.minimalRequest)
+            let messages2 = try await parser.parse(TestHTTP.requestWithHeaders)
+
+            #expect(messages1.count == 1)
+            #expect(messages2.count == 1)
+            #expect(messages1.first?.method == "GET")
+            #expect(messages2.first?.method == "GET")
         }
     }
     
@@ -202,8 +160,8 @@ struct HTTPMessagesParserTests {
                 return .proceed
             }
             
-            try await parser.parse(TestHTTP.minimalRequest)
-            
+            _ = try await parser.parse(TestHTTP.minimalRequest)
+
             #expect(handledMessages.value == 1)
         }
         
@@ -223,8 +181,8 @@ struct HTTPMessagesParserTests {
                 return .proceed
             }
             
-            try await parser.parse(TestHTTP.requestWithHeaders)
-            
+            _ = try await parser.parse(TestHTTP.requestWithHeaders)
+
             #expect(capturedMethod.value == "GET")
             #expect(capturedURL.value == "/path")
         }
@@ -265,9 +223,9 @@ struct HTTPMessagesParserTests {
         @Test
         func testParserRecoversAfterReset() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
-            
+
             let parser = HTTPMessagesParser<HTTPMessage.Request>()
-            
+
             // First parse invalid data
             await #expect(throws: LLHTTPError.self) {
                 try await parser.parse(TestHTTP.invalidData)
@@ -276,17 +234,9 @@ struct HTTPMessagesParserTests {
             await parser.llhttp.reset()
 
             // Then parse valid data
-            let messageCollector = MessageCollector<HTTPMessage.Request>()
-            Task {
-                for await message in await parser.completedMessages {
-                    await messageCollector.addMessage(message)
-                }
-            }
-            
-            try await parser.parse(TestHTTP.minimalRequest)
-            
+            let messages = try await parser.parse(TestHTTP.minimalRequest)
+
             // Parser should recover and parse valid data
-            let messages = await messageCollector.getMessages()
             #expect(messages.count >= 1)
         }
     }
@@ -297,29 +247,25 @@ struct HTTPMessagesParserTests {
         @Test
         func testParseMessageInChunks() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
-            
+
             let parser = HTTPMessagesParser<HTTPMessage.Request>()
-            
-            let messageCollector = MessageCollector<HTTPMessage.Request>()
-            Task {
-                for await message in await parser.completedMessages {
-                    await messageCollector.addMessage(message)
-                }
-            }
-            
+
             // Split request into parts
             let fullRequest = "GET /test HTTP/1.1\r\nHost: example.com\r\nContent-Length: 0\r\n\r\n".data(using: .ascii)!
             let part1 = fullRequest[0..<20]
             let part2 = fullRequest[20..<40]
             let part3 = fullRequest[40..<fullRequest.count]
-            
-            // Parse in parts
-            try await parser.parse(part1)
-            try await parser.parse(part2)
-            try await parser.parse(part3)
-            
-            let messages = await messageCollector.getMessages()
-            let firstMessage = try #require(messages.first)
+
+            // Parse in parts - first two parts won't complete a message
+            let messages1 = try await parser.parse(part1)
+            let messages2 = try await parser.parse(part2)
+            let messages3 = try await parser.parse(part3)
+
+            #expect(messages1.isEmpty)
+            #expect(messages2.isEmpty)
+            #expect(messages3.count == 1)
+
+            let firstMessage = try #require(messages3.first)
             #expect(firstMessage.method == "GET")
             #expect(firstMessage.url == "/test")
             #expect(firstMessage.headers["Host"] == ["example.com"])
@@ -328,22 +274,14 @@ struct HTTPMessagesParserTests {
         @Test
         func testIncompleteMessage() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
-            
+
             let parser = HTTPMessagesParser<HTTPMessage.Request>()
-            
-            let messageCollector = MessageCollector<HTTPMessage.Request>()
-            Task {
-                for await message in await parser.completedMessages {
-                    await messageCollector.addMessage(message)
-                }
-            }
-            
+
             // Send only partial request
             let partialRequest = "GET /test HTTP/1.1\r\nHost: examp".data(using: .ascii)!
-            try await parser.parse(partialRequest)
-            
+            let messages = try await parser.parse(partialRequest)
+
             // No complete message should be available yet
-            let messages = await messageCollector.getMessages()
             #expect(messages.isEmpty)
         }
     }
@@ -354,38 +292,23 @@ struct HTTPMessagesParserTests {
         @Test
         func testParseChunkedResponse() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
-            
-            let parser = HTTPMessagesParser<HTTPMessage.Response>()
-            
-            let messageCollector = MessageCollector<HTTPMessage.Response>()
-            Task {
-                for await message in await parser.completedMessages {
-                    await messageCollector.addMessage(message)
-                }
-            }
-            
-            try await parser.parse(TestHTTP.multipleChunksResponse)
 
-            let messages = await messageCollector.getMessages()
+            let parser = HTTPMessagesParser<HTTPMessage.Response>()
+
+            let messages = try await parser.parse(TestHTTP.multipleChunksResponse)
+
             let firstMessage = try #require(messages.first)
             #expect(firstMessage.status == "OK")
-            
+
             #expect(firstMessage.body == .chunked([.init(data: "Hello".data(using: .ascii)!, extensions: [:]), .init(data: "World".data(using: .ascii)!, extensions: [:])]))
         }
         
         @Test
         func testChunkedWithExtensions() async throws {
             guard #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) else { return }
-            
+
             let parser = HTTPMessagesParser<HTTPMessage.Response>()
-            
-            let messageCollector = MessageCollector<HTTPMessage.Response>()
-            Task {
-                for await message in await parser.completedMessages {
-                    await messageCollector.addMessage(message)
-                }
-            }
-            
+
             let chunkedWithExtensions = """
                 HTTP/1.1 200 OK\r
                 Transfer-Encoding: chunked\r
@@ -395,12 +318,11 @@ struct HTTPMessagesParserTests {
                 0\r
                 \r\n
                 """.data(using: .ascii)!
-            
-            try await parser.parse(chunkedWithExtensions)
-            
-            let messages = await messageCollector.getMessages()
+
+            let messages = try await parser.parse(chunkedWithExtensions)
+
             let firstMessage = try #require(messages.first)
-            
+
             #expect(firstMessage.body == .chunked([.init(data: "Hello".data(using: .ascii)!, extensions: ["charset": ["utf-8"]])]))
         }
     }
@@ -414,23 +336,15 @@ struct HTTPMessagesParserTests {
 
             let parser = HTTPMessagesParser<HTTPMessage.Request>()
 
-            let messageCollector = MessageCollector<HTTPMessage.Request>()
-            Task {
-                for await message in await parser.completedMessages {
-                    await messageCollector.addMessage(message)
-                }
-            }
-
             // Attempt concurrent parsing (actor should serialize)
-            async let parse1: Void = parser.parse(TestHTTP.minimalRequest)
-            async let parse2: Void = parser.parse(TestHTTP.requestWithHeaders)
+            async let messages1 = parser.parse(TestHTTP.minimalRequest)
+            async let messages2 = parser.parse(TestHTTP.requestWithHeaders)
 
-            try await parse1
-            try await parse2
+            let result1 = try await messages1
+            let result2 = try await messages2
 
             // Actor should handle concurrent calls safely
-            let messages = await messageCollector.getMessages()
-            #expect(messages.count == 2)
+            #expect(result1.count + result2.count == 2)
         }
     }
 }
@@ -460,18 +374,13 @@ struct HTTPMessagesParserPreconcurrencyTests {
     @Test
     func testPreconcurrencyParsing() throws {
         let parser = HTTPMessagesParser<HTTPMessage.Request>.Preconcurrency()
-        
-        var handledMessages = 0
-        parser.messageHandler = { message in
-            handledMessages += 1
-            #expect(message.method == "GET")
-            return .proceed
-        }
-        
-        // Synchronous parsing works correctly
-        try parser.parse(TestHTTP.requestWithHeaders)
 
-        #expect(handledMessages == 1)
+        // Synchronous parsing works correctly
+        let messages = try parser.parse(TestHTTP.requestWithHeaders)
+
+        #expect(messages.count == 1)
+        #expect(messages[0].method == "GET")
+        #expect(messages[0].url == "/path")
     }
     
     @Test
@@ -526,7 +435,7 @@ struct HTTPMessagesParserPreconcurrencyTests {
         var signalReceived = false
         var payloadReceived = false
         var headersCompleteReceived = false
-        
+
         proxy.setInternalCallbacks(
             signalHandler: { signal, state in
                 signalReceived = true
@@ -552,32 +461,53 @@ struct HTTPMessagesParserPreconcurrencyTests {
         #expect(payloadReceived)
         #expect(headersCompleteReceived)
     }
-}
 
-// Helper actor for collecting messages from streams
-private actor MessageCollector<MessageType> {
-    private var messages: [MessageType] = []
-    
-    func addMessage(_ message: MessageType) {
-        messages.append(message)
-    }
-    
-    func getMessages(after seconds: TimeInterval = 0.1) async -> [MessageType] {
-        try? await Task.sleep(for: .seconds(seconds))
-        return messages
-    }
-}
+    @Test
+    func testMessageHandlerCalledWhenMessageComplete() throws {
+        let parser = HTTPMessagesParser<HTTPMessage.Request>.Preconcurrency()
 
-// Helper actor for counting messages
-private actor MessageCounter {
-    private var count = 0
-    
-    func increment() {
-        count += 1
+        var handlerCalled = false
+        var capturedMessage: HTTPMessage.Request?
+
+        parser.messageHandler = { message in
+            handlerCalled = true
+            capturedMessage = message
+            return .proceed
+        }
+
+        // Parse complete message
+        let messages = try parser.parse(TestHTTP.minimalRequest)
+
+        // Verify handler was called
+        #expect(handlerCalled)
+        #expect(capturedMessage != nil)
+        #expect(capturedMessage?.method == "GET")
+
+        // Verify parse also returned the message
+        #expect(messages.count == 1)
+        #expect(messages[0].method == "GET")
     }
-    
-    func getCount() -> Int {
-        return count
+
+    @Test
+    func testMessageHandlerNotCalledWhenMessageIncomplete() throws {
+        let parser = HTTPMessagesParser<HTTPMessage.Request>.Preconcurrency()
+
+        var handlerCalled = false
+
+        parser.messageHandler = { message in
+            handlerCalled = true
+            return .proceed
+        }
+
+        // Parse incomplete message (just the start of a request)
+        let partialRequest = "GET /test HTTP/1.1\r\nHost: exam".data(using: .ascii)!
+        let messages = try parser.parse(partialRequest)
+
+        // Verify handler was NOT called since message is incomplete
+        #expect(handlerCalled == false)
+
+        // Verify parse returned no messages
+        #expect(messages.isEmpty)
     }
 }
 
