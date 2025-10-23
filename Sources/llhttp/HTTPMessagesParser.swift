@@ -208,7 +208,7 @@ public actor HTTPMessagesParser<MessageType: HTTPMessageType> {
         /// Requests without Content-Length and other messages might require treating all incoming bytes as the part of the body, up to the last byte of the connection.
         ///
         /// This method will trigger the callback if the request was terminated safely. Otherwise an error would be thrown.
-        public func finish() async throws -> [MessageType] {
+        public func finish() throws -> [MessageType] {
             try llhttp.finish()
 
             defer { messagesCollector = [] }
