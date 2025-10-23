@@ -55,7 +55,9 @@ Task {
             }
         }
     } catch {
-        try await parser.finish()
+        // Calling finish might return messages that are considered complete now we know no more data is comming in. (For example a single HTTP request with no content length set.)
+        // It can also fail if the HTTP message is invalid at this point and throw an error. 
+        let messages = try? await parser.finish()
     }
 }
 ```
